@@ -507,6 +507,26 @@ def _collect_target_attribute(
 
     return None
 
+def _collect_route_attribute(
+    scope: typing.Dict[str, typing.Any],
+) -> typing.Optional[str]:
+    """
+    Returns http.route as defined by the Semantic Conventions.
+
+    This value is suitable to use in metrics as it should replace concrete
+    values with a parameterized name. Example: /api/users/{user_id}
+
+    Note: this function requires specific code for each framework, as there's no
+    standard attribute to use.
+    """
+    # FastAPI
+    path: str = scope.get("path", "")
+    path_params: dict[str: any] = scope.get("path_params", {})
+    if not path_params:
+        return path
+    for key, value in path_params.items():
+        path.replace(value, f"{{{key}}}")
+    return path
 
 class OpenTelemetryMiddleware:
     """The ASGI application middleware.
@@ -762,6 +782,7 @@ class OpenTelemetryMiddleware:
                 duration_attrs_new = _parse_duration_attrs(
                     attributes, _StabilityMode.HTTP
                 )
+                route = _collect_route_attribute(scope)
                 if self.duration_histogram_old:
                     self.duration_histogram_old.record(
                         max(round(duration_s * 1000), 0), duration_attrs_old
